@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitives
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isVerified() && request.auth.uid == userId; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'createdAt', 'updatedAt'])
+        && data.size() >= 3
+        && data.size() <= 4
+        && data.email is string && data.email.size() <= 200
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && (data.get('displayName', '') is string && data.get('displayName', '').size() <= 100);
+    }
+    
+    function isValidUserUpdate(data) {
+      return data.email == existing().email 
+        && data.createdAt == existing().createdAt
+        && data.updatedAt == request.time;
+    }
+
+    function isValidHistory(data, userId) {
+      return data.keys().hasAll(['id', 'title', 'thumbnail', 'artist', 'playedAt', 'userId'])
+        && data.size() == 6
+        && data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.thumbnail is string && data.thumbnail.size() <= 500
+        && data.artist is string && data.artist.size() <= 200
+        && data.playedAt == request.time
+        && data.userId is string && data.userId == userId;
+    }
+
+    function isValidPlaylist(data, userId) {
+      return data.keys().hasAll(['id', 'name', 'tracks', 'createdAt', 'updatedAt', 'userId'])
+        && data.size() >= 6
+        && data.size() <= 7
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.tracks is list && data.tracks.size() <= 100
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && data.userId is string && data.userId == userId
+        && (data.get('cover', '') is string && data.get('cover', '').size() <= 500);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserUpdate(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+      
+      match /history/{historyId} {
+        allow read: if isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(historyId) && isValidHistory(incoming(), userId);
+        // We only append to history, or delete it
+        allow delete: if isOwner(userId);
+      }
+      
+      match /playlists/{playlistId} {
+        allow read: if isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(playlistId) && isValidPlaylist(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(playlistId) && 
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'cover', 'tracks', 'updatedAt']) &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().userId == existing().userId &&
+          incoming().id == existing().id &&
+          incoming().tracks is list && incoming().tracks.size() <= 100;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

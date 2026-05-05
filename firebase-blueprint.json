@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "User's email" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp when user was created" },
+        "updatedAt": { "type": "number", "description": "Timestamp when user was updated" }
+      },
+      "required": ["email", "createdAt", "updatedAt"]
+    },
+    "HistoryEntry": {
+      "title": "HistoryEntry",
+      "description": "A track the user has played",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "artist": { "type": "string" },
+        "playedAt": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "title", "thumbnail", "artist", "playedAt", "userId"]
+    },
+    "Playlist": {
+      "title": "Playlist",
+      "description": "A user's saved playlist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "cover": { "type": "string" },
+        "tracks": { 
+          "type": "array",
+          "items": { "$ref": "#/definitions/Track" },
+          "description": "An array of tracks in the playlist, limited to 100"
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "name", "tracks", "createdAt", "updatedAt", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User profiles"
+    },
+    "/users/{userId}/history/{historyId}": {
+      "schema": { "$ref": "HistoryEntry" },
+      "description": "History of played tracks"
+    },
+    "/users/{userId}/playlists/{playlistId}": {
+      "schema": { "$ref": "Playlist" },
+      "description": "User custom playlists"
+    }
+  }
+}
