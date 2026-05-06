@@ -18,6 +18,7 @@ import { handleFirestoreError, OperationType } from './lib/firebaseUtils';
 export default function App() {
   const [activeTab, setActiveTab] = useState('discover');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [queue, setQueue] = useState<Track[]>([]);
   const [searchResults, setSearchResults] = useState<Track[]>([]);
@@ -104,6 +105,37 @@ export default function App() {
     return () => { mounted = false; };
   }, [getDiscovery, searchTracks]);
 
+
+  useEffect(() => {
+    // Dropdown global click listener
+    const closeDropdowns = () => setActiveDropdown(null);
+    document.addEventListener('click', closeDropdowns);
+    return () => document.removeEventListener('click', closeDropdowns);
+  }, []);
+
+  useEffect(() => {
+    // History popstate listener for back button
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.tab) {
+        setActiveTab(e.state.tab);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    
+    // Set initial state if missing
+    if (!window.history.state?.tab) {
+      window.history.replaceState({ tab: 'discover' }, '', window.location.pathname);
+    }
+    
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    // Update history when activeTab changes, but avoid pushing if we arrived via popstate
+    if (window.history.state?.tab !== activeTab) {
+      window.history.pushState({ tab: activeTab }, '', '');
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (history.length > 0 && relatedTracks.length === 0 && currentTrack) {
@@ -475,11 +507,17 @@ export default function App() {
                         >
                           Ver todas
                         </button>
-                        <div className="relative group">
-                          <button className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                        <div className="relative z-40">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveDropdown(activeDropdown === p.id ? null : p.id);
+                            }}
+                            className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                          >
                             <MoreVertical className="w-5 h-5" />
                           </button>
-                          <div className="absolute right-0 mt-2 w-48 bg-cyber-dark/95 backdrop-blur-xl border border-white/10 rounded-xl p-2 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                          <div className={`absolute right-0 mt-2 w-48 bg-cyber-dark/95 backdrop-blur-xl border border-white/10 rounded-xl p-2 shadow-2xl transition-all ${activeDropdown === p.id ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
                             <button 
                               onClick={() => {
                                 const newName = prompt('Novo nome da playlist:', p.name);
@@ -550,11 +588,17 @@ export default function App() {
                   <p className="text-xs uppercase tracking-widest text-zinc-400 font-bold mb-2">Playlist</p>
                   <div className="flex items-center gap-4">
                     <h2 className="text-4xl sm:text-5xl font-black tracking-tighter truncate">{playlist?.name}</h2>
-                    <div className="relative group">
-                      <button className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                    <div className="relative z-40">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDropdown(activeDropdown === 'current-playlist' ? null : 'current-playlist');
+                        }}
+                        className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                      >
                         <MoreVertical className="w-5 h-5" />
                       </button>
-                      <div className="absolute left-0 mt-2 w-48 bg-cyber-dark/95 backdrop-blur-xl border border-white/10 rounded-xl p-2 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      <div className={`absolute left-0 mt-2 w-48 bg-cyber-dark/95 backdrop-blur-xl border border-white/10 rounded-xl p-2 shadow-2xl transition-all ${activeDropdown === 'current-playlist' ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
                         <button 
                           onClick={() => {
                             const newName = prompt('Novo nome da playlist:', playlist?.name);
