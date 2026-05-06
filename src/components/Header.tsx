@@ -104,7 +104,7 @@ export const Header = React.memo(function Header({ onSearch, user, onLogin, onLo
       <div className="flex items-center gap-3 sm:gap-6 shrink-0">
         <button className="hidden sm:block relative text-zinc-400 hover:text-white transition-colors">
           <Bell className="w-5 h-5" />
-          <span className="absolute top-0 right-0 w-2 h-2 bg-neon-pink rounded-full shadow-[0_0_8px_#ff00ff]"></span>
+          <span className="absolute top-0 right-0 w-2 h-2 bg-neon-pink rounded-full shadow-[0_0_8px_var(--color-neon-pink)]"></span>
         </button>
         
         {user ? (

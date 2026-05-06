@@ -8,12 +8,31 @@ import { useMusicApi } from './useMusicApi';
 import { motion, AnimatePresence } from 'motion/react';
 import { Disc, Library, Search as SearchIcon, Sparkles, MoreVertical } from 'lucide-react';
 import { CategoriesTab } from './components/CategoriesTab';
-import { CreatePlaylistModal, SaveTrackModal } from './components/PlaylistModals';
+import { CreatePlaylistModal, SaveTrackModal, RenamePlaylistModal, DeletePlaylistModal } from './components/PlaylistModals';
+import { getPalette } from 'colorthief';
 
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db, loginWithGoogle, logout } from './lib/firebase';
 import { collection, query, orderBy, limit, getDocs, doc, setDoc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './lib/firebaseUtils';
+
+function rgbToHsl(r: number, g: number, b: number) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('library');
@@ -34,6 +53,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [savingTrack, setSavingTrack] = useState<Track | null>(null);
   const [creatingPlaylist, setCreatingPlaylist] = useState(false);
+  const [renamingPlaylist, setRenamingPlaylist] = useState<{id: string, name: string} | null>(null);
+  const [deletingPlaylist, setDeletingPlaylist] = useState<string | null>(null);
 
   const { searchTracks, getDiscovery, getRelatedTracks, loading } = useMusicApi();
 
@@ -112,6 +133,59 @@ export default function App() {
     document.addEventListener('click', closeDropdowns);
     return () => document.removeEventListener('click', closeDropdowns);
   }, []);
+
+  useEffect(() => {
+    if (currentTrack?.thumbnail) {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      
+      const proxiedUrl = `https://images.weserv.nl/?url=${encodeURIComponent(currentTrack.thumbnail)}&output=jpg`;
+      
+      img.onload = async () => {
+        try {
+          const palette = await getPalette(img, { colorCount: 3 });
+          if (palette && palette.length > 0) {
+            // Depending on version, palette is an array of Colors or bare arrays
+            const parseColor = (c: any) => {
+              if (Array.isArray(c)) return c;
+              if (c && typeof c.array === 'function') {
+                const arr = c.array();
+                if (Array.isArray(arr)) return arr;
+              }
+              if (c && typeof c.rgb === 'function') {
+                const rgb = c.rgb();
+                if (Array.isArray(rgb)) return rgb;
+                if (rgb && rgb.r !== undefined) return [rgb.r, rgb.g, rgb.b];
+              }
+              if (c && c[0] !== undefined) return [c[0], c[1], c[2]];
+              return [0, 243, 255]; // fallback cyan
+            };
+            
+            const [r1, g1, b1] = parseColor(palette[0]);
+            const [r2, g2, b2] = palette.length > 1 ? parseColor(palette[1]) : [r1, g1, b1];
+
+            const [h1] = rgbToHsl(r1, g1, b1);
+            const [h2] = rgbToHsl(r2, g2, b2);
+
+            // Force high saturation and lightness for neon glow
+            document.documentElement.style.setProperty('--color-neon-cyan', `hsl(${h1}, 100%, 55%)`);
+            document.documentElement.style.setProperty('--color-neon-pink', `hsl(${h2}, 100%, 60%)`);
+          }
+        } catch (e) {
+          console.error("ColorThief Error:", e);
+        }
+      };
+      
+      img.onerror = () => {
+        console.error("Failed to load proxied image for ColorThief");
+      };
+      
+      img.src = proxiedUrl;
+    } else {
+      document.documentElement.style.removeProperty('--color-neon-cyan');
+      document.documentElement.style.removeProperty('--color-neon-pink');
+    }
+  }, [currentTrack]);
 
   useEffect(() => {
     // History popstate listener for back button
@@ -520,8 +594,8 @@ export default function App() {
                           <div className={`absolute right-0 mt-2 w-48 bg-cyber-dark/95 backdrop-blur-xl border border-white/10 rounded-xl p-2 shadow-2xl transition-all ${activeDropdown === p.id ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
                             <button 
                               onClick={() => {
-                                const newName = prompt('Novo nome da playlist:', p.name);
-                                if (newName && newName.trim()) handleRenamePlaylist(p.id, newName.trim());
+                                setRenamingPlaylist({ id: p.id, name: p.name });
+                                setActiveDropdown(null);
                               }}
                               className="w-full text-left px-4 py-2 hover:bg-white/10 rounded-lg text-sm text-white transition-colors"
                             >
@@ -529,9 +603,8 @@ export default function App() {
                             </button>
                             <button 
                               onClick={() => {
-                                if (confirm('Tem certeza que deseja excluir esta playlist?')) {
-                                  handleDeletePlaylist(p.id);
-                                }
+                                setDeletingPlaylist(p.id);
+                                setActiveDropdown(null);
                               }}
                               className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-500 rounded-lg text-sm transition-colors mt-1"
                             >
@@ -601,8 +674,8 @@ export default function App() {
                       <div className={`absolute left-0 mt-2 w-48 bg-cyber-dark/95 backdrop-blur-xl border border-white/10 rounded-xl p-2 shadow-2xl transition-all ${activeDropdown === 'current-playlist' ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
                         <button 
                           onClick={() => {
-                            const newName = prompt('Novo nome da playlist:', playlist?.name);
-                            if (newName && newName.trim() && playlist) handleRenamePlaylist(playlist.id, newName.trim());
+                            if (playlist) setRenamingPlaylist({ id: playlist.id, name: playlist.name });
+                            setActiveDropdown(null);
                           }}
                           className="w-full text-left px-4 py-2 hover:bg-white/10 rounded-lg text-sm text-white transition-colors"
                         >
@@ -610,10 +683,8 @@ export default function App() {
                         </button>
                         <button 
                           onClick={() => {
-                            if (confirm('Tem certeza que deseja excluir esta playlist?') && playlist) {
-                              handleDeletePlaylist(playlist.id);
-                              setActiveTab('library');
-                            }
+                            if (playlist) setDeletingPlaylist(playlist.id);
+                            setActiveDropdown(null);
                           }}
                           className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-500 rounded-lg text-sm transition-colors mt-1"
                         >
@@ -707,6 +778,7 @@ export default function App() {
           canPrev={historyIndex > 0}
           relatedTracks={relatedTracks}
           queue={queue}
+          onReorderQueue={setQueue}
           onPlayTrack={playTrack}
         />
       </main>
@@ -727,6 +799,27 @@ export default function App() {
           onCreate={(name) => handleCreatePlaylist(name)}
         />
       )}
+
+      {renamingPlaylist && (
+        <RenamePlaylistModal
+          currentName={renamingPlaylist.name}
+          onClose={() => setRenamingPlaylist(null)}
+          onRename={(newName) => handleRenamePlaylist(renamingPlaylist.id, newName)}
+        />
+      )}
+
+      {deletingPlaylist && (
+        <DeletePlaylistModal
+          onClose={() => setDeletingPlaylist(null)}
+          onDelete={() => {
+            handleDeletePlaylist(deletingPlaylist);
+            if (activeTab === `playlist-${deletingPlaylist}`) {
+              setActiveTab('library');
+            }
+          }}
+        />
+      )}
+
 
       {/* Aesthetic decorative elements */}
       <div className="fixed top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-neon-cyan/20 to-transparent pointer-events-none"></div>

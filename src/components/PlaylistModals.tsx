@@ -150,3 +150,71 @@ export function CreatePlaylistModal({ onClose, onCreate }: CreatePlaylistModalPr
     </div>
   );
 }
+
+interface RenamePlaylistModalProps {
+  onClose: () => void;
+  onRename: (newName: string) => void;
+  currentName: string;
+}
+
+export function RenamePlaylistModal({ onClose, onRename, currentName }: RenamePlaylistModalProps) {
+  const [name, setName] = useState(currentName);
+
+  const handleRename = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      onRename(name.trim());
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-cyber-dark glass-panel border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold">Renomear Playlist</h2>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={handleRename} className="space-y-4">
+          <input 
+            autoFocus
+            type="text" 
+            placeholder="Novo nome" 
+            value={name}
+            onChange={e => setName(e.target.value)}
+            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-zinc-500 focus:outline-none focus:border-neon-cyan"
+          />
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 py-3 text-zinc-400 hover:text-white transition-colors">Cancelar</button>
+            <button type="submit" disabled={!name.trim()} className="flex-1 py-3 bg-neon-cyan text-cyber-dark font-bold rounded-xl disabled:opacity-50">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface DeletePlaylistModalProps {
+  onClose: () => void;
+  onDelete: () => void;
+}
+
+export function DeletePlaylistModal({ onClose, onDelete }: DeletePlaylistModalProps) {
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-cyber-dark glass-panel border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold">Excluir Playlist</h2>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="space-y-6">
+          <p className="text-zinc-300">Tem certeza que deseja excluir esta playlist? Esta ação não pode ser desfeita.</p>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 text-zinc-400 hover:text-white transition-colors">Cancelar</button>
+            <button onClick={() => { onDelete(); onClose(); }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors">Excluir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

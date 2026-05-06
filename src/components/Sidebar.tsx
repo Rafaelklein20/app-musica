@@ -25,7 +25,7 @@ export const Sidebar = React.memo(function Sidebar({ activeTab, setActiveTab, pl
   return (
     <div className="w-64 h-full bg-cyber-dark/95 backdrop-blur-3xl border-r border-white/5 flex flex-col p-6 md:pb-28 gap-8 overflow-hidden">
       <div className="flex items-center gap-3 shrink-0">
-        <div className="w-10 h-10 bg-gradient-to-br from-neon-cyan to-neon-pink rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(0,243,255,0.4)]">
+        <div className="w-10 h-10 bg-gradient-to-br from-neon-cyan to-neon-pink rounded-lg flex items-center justify-center shadow-[0_0_15px_color-mix(in_srgb,var(--color-neon-cyan)_40%,transparent)]">
           <Disc className="text-white w-6 h-6 animate-spin-slow" />
         </div>
         <h1 className="text-xl font-bold tracking-tighter text-neon-cyan neon-text-cyan">NEONBEAT</h1>

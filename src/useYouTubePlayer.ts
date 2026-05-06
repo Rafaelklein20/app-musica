@@ -8,41 +8,40 @@ declare global {
 }
 
 export function useYouTubePlayer(onVideoEnd: () => void) {
-  const [player, setPlayer] = useState<any>(null);
+  const [activePlayerIndex, setActivePlayerIndex] = useState<0 | 1>(0);
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(100);
-  const pendingVideoId = useRef<string | null>(null);
+  
+  const playersRef = useRef<any[]>([null, null]);
+  const userVolume = useRef(100);
+  const targetVideoId = useRef<string | null>(null);
+  
   const isApiLoaded = useRef(false);
   const timerRef = useRef<number | null>(null);
   const onVideoEndRef = useRef(onVideoEnd);
+  
+  const activeIdxRef = useRef<0 | 1>(0);
 
   useEffect(() => {
     onVideoEndRef.current = onVideoEnd;
   }, [onVideoEnd]);
-
+  
+  // Track time for active player
   useEffect(() => {
-    if (isReady && player && pendingVideoId.current) {
-      player.loadVideoById(pendingVideoId.current);
-      pendingVideoId.current = null;
-    }
-  }, [isReady, player]);
-
-  useEffect(() => {
-    if (isReady && player) {
-      timerRef.current = window.setInterval(() => {
-        if (player.getCurrentTime) {
-          setCurrentTime(player.getCurrentTime());
-          setDuration(player.getDuration());
-        }
-      }, 1000);
-    }
+    timerRef.current = window.setInterval(() => {
+      const activeP = playersRef.current[activeIdxRef.current];
+      if (activeP && activeP.getCurrentTime) {
+        setCurrentTime(activeP.getCurrentTime());
+        setDuration(activeP.getDuration());
+      }
+    }, 1000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isReady, player]);
+  }, []);
 
   useEffect(() => {
     if (!window.YT) {
@@ -54,48 +53,51 @@ export function useYouTubePlayer(onVideoEnd: () => void) {
         isApiLoaded.current = true;
       }
     }
-
-    return () => {
-      // Manual cleanup if needed
-    };
   }, []);
 
-  const currentVideoId = useRef<string | null>(null);
-
-  const initPlayer = useCallback((videoId: string) => {
-    if (videoId === currentVideoId.current && player) return;
+  const crossfade = useCallback((oldIndex: 0 | 1, newIndex: 0 | 1) => {
+    const oldP = playersRef.current[oldIndex];
+    const newP = playersRef.current[newIndex];
+    let volOld = userVolume.current;
+    let volNew = 0;
     
-    if (!window.YT || !window.YT.Player) {
-      pendingVideoId.current = videoId;
-      window.onYouTubeIframeAPIReady = () => {
-        initPlayer(videoId);
-      };
-      return;
+    if (newP && typeof newP.setVolume === 'function') {
+      newP.setVolume(volNew);
+      newP.playVideo();
     }
+    
+    const steps = 30; // 3 seconds
+    const intervalTime = 100;
+    const fadeOutStep = volOld / steps;
+    const fadeInStep = userVolume.current / steps;
 
-    const playerElement = document.getElementById('youtube-player-actual');
-    if (!playerElement) {
-      setTimeout(() => initPlayer(videoId), 100);
-      return;
-    }
+    const interval = setInterval(() => {
+      volOld -= fadeOutStep;
+      volNew += fadeInStep;
 
-    if (player) {
-      if (isReady && typeof player.loadVideoById === 'function') {
-        player.loadVideoById(videoId);
-        currentVideoId.current = videoId;
+      if (volOld <= 0 || volNew >= userVolume.current) {
+        clearInterval(interval);
+        if (oldP && typeof oldP.pauseVideo === 'function') {
+          oldP.pauseVideo();
+        }
+        if (newP && typeof newP.setVolume === 'function') {
+          newP.setVolume(userVolume.current);
+        }
       } else {
-        pendingVideoId.current = videoId;
+        if (oldP && typeof oldP.setVolume === 'function') oldP.setVolume(Math.round(volOld));
+        if (newP && typeof newP.setVolume === 'function') newP.setVolume(Math.round(volNew));
       }
-      return;
-    }
+    }, intervalTime);
+  }, []);
 
+  const createPlayer = useCallback((index: 0 | 1, videoId: string, autoplay: boolean, onload: () => void) => {
     try {
-      const newPlayer = new window.YT.Player('youtube-player-actual', {
+      const newPlayer = new window.YT.Player(`youtube-player-${index}`, {
         height: '100%',
         width: '100%',
         videoId: videoId,
         playerVars: {
-          autoplay: 1,
+          autoplay: autoplay ? 1 : 0,
           modestbranding: 1,
           controls: 1,
           rel: 0,
@@ -103,59 +105,127 @@ export function useYouTubePlayer(onVideoEnd: () => void) {
         },
         events: {
           onReady: (event: any) => {
-            setIsReady(true);
-            event.target.playVideo();
-            setVolume(event.target.getVolume());
-            currentVideoId.current = videoId;
+            playersRef.current[index] = newPlayer;
+            if (!isReady && index === 0) setIsReady(true);
+            
+            onload();
           },
           onStateChange: (event: any) => {
-            if (event.data === window.YT.PlayerState.PLAYING) {
-              setIsPlaying(true);
-            } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
-              setIsPlaying(false);
-            }
-            if (event.data === window.YT.PlayerState.ENDED) {
-              onVideoEndRef.current();
+            // Only update play state from active player
+            if (activeIdxRef.current === index) {
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setIsPlaying(true);
+              } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
+                setIsPlaying(false);
+              }
+              if (event.data === window.YT.PlayerState.ENDED) {
+                onVideoEndRef.current();
+              }
             }
           },
           onError: (e: any) => {
-            if ([5, 100, 101, 150].includes(e.data)) {
-              onVideoEndRef.current();
+            if (activeIdxRef.current === index) {
+              if ([5, 100, 101, 150].includes(e.data)) {
+                onVideoEndRef.current();
+              }
             }
           }
         },
       });
-
-      setPlayer(newPlayer);
     } catch (err) {
       console.error('Failed to create YouTube player:', err);
     }
-  }, [player, isReady, onVideoEnd]);
+  }, [isReady]);
+
+  const initPlayer = useCallback((videoId: string) => {
+    if (videoId === targetVideoId.current) return;
+    targetVideoId.current = videoId;
+    
+    if (!window.YT || !window.YT.Player) {
+      window.onYouTubeIframeAPIReady = () => {
+        initPlayer(videoId);
+      };
+      return;
+    }
+
+    const currentIdx = activeIdxRef.current;
+    
+    // Initial start
+    if (!playersRef.current[0] && !playersRef.current[1]) {
+      createPlayer(0, videoId, true, () => {
+        const p = playersRef.current[0];
+        if(p) {
+          p.setVolume(userVolume.current);
+          p.playVideo();
+        }
+      });
+      return;
+    }
+
+    // Changing track with existing player, use the other player for crossfade
+    const nextIdx = currentIdx === 0 ? 1 : 0;
+    activeIdxRef.current = nextIdx;
+    setActivePlayerIndex(nextIdx);
+
+    const oldP = playersRef.current[currentIdx];
+    const newP = playersRef.current[nextIdx];
+
+    const doTransition = () => {
+      // If we're not currently playing, don't crossfade, just jump
+      if (oldP && oldP.getPlayerState && oldP.getPlayerState() === window.YT.PlayerState.PLAYING) {
+        crossfade(currentIdx, nextIdx);
+      } else {
+        if (oldP && typeof oldP.pauseVideo === 'function') oldP.pauseVideo();
+        const p = playersRef.current[nextIdx];
+        if (p && typeof p.setVolume === 'function') {
+          p.setVolume(userVolume.current);
+          p.playVideo();
+        }
+      }
+    };
+
+    if (!newP) {
+      createPlayer(nextIdx, videoId, false, () => {
+        doTransition();
+      });
+    } else {
+      if (typeof newP.loadVideoById === 'function') {
+        newP.loadVideoById(videoId);
+        setTimeout(doTransition, 200); // Give it a moment to buffer slightly
+      }
+    }
+
+  }, [createPlayer, crossfade]);
 
   const pauseVideo = useCallback(() => {
-    if (player && typeof player.pauseVideo === 'function' && isReady) {
-      player.pauseVideo();
+    const p = playersRef.current[activeIdxRef.current];
+    if (p && typeof p.pauseVideo === 'function') {
+      p.pauseVideo();
     }
-  }, [player, isReady]);
+  }, []);
 
   const playVideo = useCallback(() => {
-    if (player && typeof player.playVideo === 'function' && isReady) {
-      player.playVideo();
+    const p = playersRef.current[activeIdxRef.current];
+    if (p && typeof p.playVideo === 'function') {
+      p.playVideo();
     }
-  }, [player, isReady]);
+  }, []);
 
   const seekTo = useCallback((seconds: number) => {
-    if (player && typeof player.seekTo === 'function' && isReady) {
-      player.seekTo(seconds, true);
+    const p = playersRef.current[activeIdxRef.current];
+    if (p && typeof p.seekTo === 'function') {
+      p.seekTo(seconds, true);
     }
-  }, [player, isReady]);
+  }, []);
 
   const updateVolume = useCallback((val: number) => {
-    if (player && typeof player.setVolume === 'function' && isReady) {
-      player.setVolume(val);
-      setVolume(val);
+    userVolume.current = val;
+    setVolume(val);
+    const p = playersRef.current[activeIdxRef.current];
+    if (p && typeof p.setVolume === 'function') {
+      p.setVolume(val);
     }
-  }, [player, isReady]);
+  }, []);
 
   return { 
     initPlayer, 
@@ -167,6 +237,7 @@ export function useYouTubePlayer(onVideoEnd: () => void) {
     duration, 
     volume,
     isReady,
-    isPlaying
+    isPlaying,
+    activePlayerIndex
   };
 }

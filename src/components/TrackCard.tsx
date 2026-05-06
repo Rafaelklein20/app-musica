@@ -27,7 +27,7 @@ export const TrackCard: React.FC<TrackCardProps> = React.memo(({ track, onPlay, 
         />
         <div className="hidden absolute inset-0 bg-black/60 md:opacity-0 md:group-hover:opacity-100 transition-opacity md:flex items-center justify-center gap-3">
           <button
-            className="w-12 h-12 bg-neon-cyan rounded-full flex items-center justify-center shadow-[0_0_15px_#00f3ff] md:hover:scale-110 transition-transform"
+            className="w-12 h-12 bg-neon-cyan rounded-full flex items-center justify-center shadow-[0_0_15px_var(--color-neon-cyan)] md:hover:scale-110 transition-transform"
           >
             <Play className="text-cyber-dark fill-cyber-dark w-6 h-6 transform translate-x-0.5" />
           </button>

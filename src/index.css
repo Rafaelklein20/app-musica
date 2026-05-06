@@ -14,8 +14,8 @@
   body {
     @apply bg-cyber-dark text-white font-sans antialiased;
     background-image: 
-      radial-gradient(circle at 0% 0%, rgba(0, 243, 255, 0.05) 0%, transparent 40%),
-      radial-gradient(circle at 100% 100%, rgba(255, 0, 255, 0.05) 0%, transparent 40%);
+      radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--color-neon-cyan) 5%, transparent) 0%, transparent 40%),
+      radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--color-neon-pink) 5%, transparent) 0%, transparent 40%);
   }
 }
 
@@ -25,11 +25,11 @@
   }
   
   .neon-text-cyan {
-    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--color-neon-cyan) 50%, transparent);
   }
   
   .neon-text-pink {
-    text-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--color-neon-pink) 50%, transparent);
   }
 
   .glass-panel {
@@ -44,5 +44,27 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+@keyframes music-beat {
+  0% {
+    box-shadow: 0 0 40px color-mix(in srgb, var(--color-neon-cyan) 40%, transparent), 0 0 80px color-mix(in srgb, var(--color-neon-pink) 20%, transparent);
+  }
+  20% {
+    box-shadow: 0 0 120px color-mix(in srgb, var(--color-neon-cyan) 80%, transparent), 0 0 250px color-mix(in srgb, var(--color-neon-pink) 60%, transparent);
+  }
+  40% {
+    box-shadow: 0 0 60px color-mix(in srgb, var(--color-neon-cyan) 50%, transparent), 0 0 120px color-mix(in srgb, var(--color-neon-pink) 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 150px color-mix(in srgb, var(--color-neon-cyan) 90%, transparent), 0 0 300px color-mix(in srgb, var(--color-neon-pink) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 40px color-mix(in srgb, var(--color-neon-cyan) 40%, transparent), 0 0 80px color-mix(in srgb, var(--color-neon-pink) 20%, transparent);
+  }
+}
+
+.animate-music-beat {
+  animation: music-beat 2.4s ease-in-out infinite;
 }
 
