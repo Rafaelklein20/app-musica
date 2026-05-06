@@ -16,7 +16,7 @@ import { collection, query, orderBy, limit, getDocs, doc, setDoc, deleteDoc, ser
 import { handleFirestoreError, OperationType } from './lib/firebaseUtils';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('discover');
+  const [activeTab, setActiveTab] = useState('library');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -124,7 +124,7 @@ export default function App() {
     
     // Set initial state if missing
     if (!window.history.state?.tab) {
-      window.history.replaceState({ tab: 'discover' }, '', window.location.pathname);
+      window.history.replaceState({ tab: 'library' }, '', window.location.pathname);
     }
     
     return () => window.removeEventListener('popstate', handlePopState);

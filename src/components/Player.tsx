@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Play, SkipBack, SkipForward, Volume2, Repeat, Shuffle, Maximize2, X, Disc, Music } from 'lucide-react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { Play, SkipBack, SkipForward, Volume2, Repeat, Shuffle, Maximize2, Cast, Youtube, X, Disc, Music } from 'lucide-react';
 import { Track } from '../types';
 import { useYouTubePlayer } from '../useYouTubePlayer';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,10 +17,44 @@ interface PlayerProps {
 
 export const Player = React.memo(function Player({ currentTrack, onNext, onPrev, canPrev, relatedTracks = [], queue = [], onPlayTrack }: PlayerProps) {
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayedFirst, setHasPlayedFirst] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
   const isRepeatRef = useRef(isRepeat);
+
+  const openFullScreen = useCallback(() => {
+    setIsFullScreen(prev => {
+      if (!prev) {
+        window.history.pushState({ playerFullScreen: true }, '');
+        return true;
+      }
+      return prev;
+    });
+  }, []);
+
+  const closeFullScreen = useCallback(() => {
+    setIsFullScreen(prev => {
+      if (prev) {
+        if (window.history.state?.playerFullScreen) {
+          window.history.back();
+        }
+        return false;
+      }
+      return prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      setIsFullScreen(prev => {
+        if (prev && !e.state?.playerFullScreen) {
+          return false;
+        }
+        return prev;
+      });
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   useEffect(() => {
     isRepeatRef.current = isRepeat;
   }, [isRepeat]);
@@ -44,7 +78,8 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
     currentTime, 
     duration, 
     volume,
-    isReady 
+    isReady,
+    isPlaying
   } = useYouTubePlayer(() => {
     if (handleVideoEndRef.current) {
       handleVideoEndRef.current();
@@ -65,13 +100,12 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
   useEffect(() => {
     if (currentTrack) {
       initPlayer(currentTrack.id);
-      setIsPlaying(true);
       if (!hasPlayedFirst) {
-        setIsFullScreen(true);
+        openFullScreen();
         setHasPlayedFirst(true);
       }
     }
-  }, [currentTrack, initPlayer, hasPlayedFirst]);
+  }, [currentTrack, initPlayer, hasPlayedFirst, openFullScreen]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -128,7 +162,7 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
             <div className="flex items-center gap-3 sm:gap-4 flex-1 md:w-1/3 min-w-0">
               <div 
                 className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-lg overflow-hidden border border-white/10 relative group cursor-pointer"
-                onClick={() => setIsFullScreen(true)}
+                onClick={openFullScreen}
               >
                 <img src={currentTrack.thumbnail} className="w-full h-full object-cover" alt="" />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100">
@@ -137,7 +171,7 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
               </div>
               <div 
                 className="flex flex-col gap-0.5 overflow-hidden cursor-pointer"
-                onClick={() => setIsFullScreen(true)}
+                onClick={openFullScreen}
               >
                 <h4 className="text-sm font-bold truncate text-neon-cyan neon-text-cyan">{currentTrack.title}</h4>
                 <p className="text-[10px] sm:text-[10px] text-zinc-500 uppercase tracking-widest truncate">{currentTrack.artist}</p>
@@ -159,7 +193,6 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
                   onClick={() => {
                     if (isPlaying) pauseVideo();
                     else playVideo();
-                    setIsPlaying(!isPlaying);
                   }}
                   className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.3)] disabled:opacity-50"
                 >
@@ -202,8 +235,8 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
               </div>
             </div>
 
-            <div className="hidden md:flex items-center justify-end gap-4 w-1/3">
-              <div className="flex items-center gap-2 group">
+            <div className="flex md:flex items-center justify-end gap-4 w-1/3">
+              <div className="hidden md:flex items-center gap-2 group">
                 <Volume2 className="w-4 h-4 text-zinc-400 group-hover:text-neon-cyan transition-colors" />
                 <input 
                   type="range" 
@@ -214,7 +247,20 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
                   className="w-24 h-1 bg-white/10 rounded-full appearance-none accent-neon-cyan cursor-pointer"
                 />
               </div>
-              <button onClick={() => setIsFullScreen(true)} className="text-zinc-400 hover:text-white transition-colors">
+              <div className="relative">
+                <button 
+                  onClick={() => {
+                    if (currentTrack?.youtubeId) {
+                      window.open(`https://www.youtube.com/watch?v=${currentTrack.youtubeId}`, '_blank');
+                    }
+                  }} 
+                  className="text-zinc-400 hover:text-neon-cyan flex transition-colors"
+                  title="Abrir no YouTube para transmitir"
+                >
+                  <Youtube className="w-4 h-4" />
+                </button>
+              </div>
+              <button onClick={openFullScreen} className="text-zinc-400 hover:text-white flex transition-colors" title="Tela Cheia">
                 <Maximize2 className="w-4 h-4" />
               </button>
             </div>
@@ -238,7 +284,7 @@ export const Player = React.memo(function Player({ currentTrack, onNext, onPrev,
                 <h2 className="text-lg font-bold tracking-tighter text-neon-cyan neon-text-cyan">NEONBEAT PLAYER</h2>
               </div>
               <button 
-                onClick={() => setIsFullScreen(false)}
+                onClick={closeFullScreen}
                 className="w-10 h-10 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center text-white"
               >
                 <X className="w-6 h-6" />

@@ -10,6 +10,7 @@ declare global {
 export function useYouTubePlayer(onVideoEnd: () => void) {
   const [player, setPlayer] = useState<any>(null);
   const [isReady, setIsReady] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(100);
@@ -108,6 +109,11 @@ export function useYouTubePlayer(onVideoEnd: () => void) {
             currentVideoId.current = videoId;
           },
           onStateChange: (event: any) => {
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              setIsPlaying(true);
+            } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
+              setIsPlaying(false);
+            }
             if (event.data === window.YT.PlayerState.ENDED) {
               onVideoEndRef.current();
             }
@@ -160,6 +166,7 @@ export function useYouTubePlayer(onVideoEnd: () => void) {
     currentTime, 
     duration, 
     volume,
-    isReady 
+    isReady,
+    isPlaying
   };
 }
